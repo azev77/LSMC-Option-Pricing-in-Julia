@@ -1,24 +1,24 @@
 using Statistics, LinearAlgebra, Random, BenchmarkTools
 
-@inline function chebyshev_basis(x, k)
+function chebyshev_basis(x, k)
     B = ones(size(x, 1), k)
     B[:,2] = x
     for n in range(3, stop = k)
-        @. @views B[:,n] = 2 * x * B[:,n - 1] - B[:,n - 2] #Vasily
+        @. @views B[:,n] = 2 * x * B[:,n - 1] - B[:,n - 2]
         #B[:,n] = @. 2 * x * B[:,n - 1] - B[:,n - 2]
         #B[:,n] = 2 .* x .* B[:,n - 1] .- B[:,n - 2]
     end
     return B
 end
 
-@inline function ridge_regression(X, Y, λ)
+function ridge_regression(X, Y, λ)
     #id = Matrix{Float64}(I, order, order)
     #β = (X' * X + λ * id) \ (X' * Y)
     β = (X'X + λ * I) \ (X'Y)
     return X * β
 end
 
-@inline function first_one(x)
+function first_one(x)
     original = x
     x = x .> 0.
     n_columns = size(x, 2)
@@ -31,26 +31,32 @@ end
     return original .* (lag .* x)
 end
 
-@inline function scale(x)
+function scale(x)
     xmin = minimum(x)
     xmax = maximum(x)
     a = 2 / (xmax - xmin)
     b = -0.5 * a * (xmin + xmax)
-    return a .* x .+ b
+    out = @.  a * x + b  #@.  a*x +b
+    #return a .* x .+ b
+    return out
 end
 
-@inline function advance(S, r, σ, Δt, n)
+function advance(S, r, σ, Δt, n)
     dB = sqrt(Δt) * randn(Float64, (n))
     #out = S .+ r .* S .* Δt .+ σ .* S .* dB
     out = @. S + r * S * Δt + σ * S * dB
     return out
 end
 
-@inline function w(a, b, c)
+function where(cond, value_if_true, value_if_false)
+    out = value_if_true .* cond + .!cond .* value_if_false
+    #out = cond ? value_if_true : value_if_false
+end
+function w(a, b, c)
     a ? b : c
 end
 
-@inline function compute_price(Spot, σ, K, r, n, m, Δt, order)
+function compute_price(Spot, σ, K, r, n, m, Δt, order)
     Random.seed!(0)
     S = zeros(n, m + 1)
     S[:, 1] = Spot * ones(n, 1)
@@ -72,15 +78,15 @@ end
         #value[:, t] = discount * where(CFL[:, t_next] .> CV[:, t], CFL[:, t_next], value[:, t_next])
     end
     POF = w.(CV .< CFL[:, 2:end], CFL[:, 2:end], 0 * CFL[:, 2:end])';
-    #POF = where(CV .< CFL[:, 2:end], CFL[:, 2:end], 0 * CFL[:, 2:end])';
-
     FPOF = first_one(POF')'
     m_range = collect(range(0; stop=m-1, step = 1))
     dFPOF = @. (FPOF*exp(-r*m_range*Δt))   #(FPOF.*exp.(-r*m_range*Δt))
     PRICE = sum(dFPOF) / n  ##mean(dFPOF)
     return PRICE
 end
+######
 
+compute_price(36., .2, 40., .06, 100000, 10, 1/10, 5)
 Spot = 36.0
 σ = 0.2
 n = 100000
@@ -90,9 +96,11 @@ r = 0.06
 T = 1
 #order = 25
 Δt = T / m
-#
-compute_price(Spot, σ, K, r, n, m, Δt, 5)  # warmup
+#const order = 5;
+compute_price(Spot, σ, K, r, n, m, Δt, 5)
 @benchmark compute_price(Spot, σ, K, r, n, m, Δt, 5)
+typeof(Spot), typeof(σ), typeof(K), typeof(r)
+compute_price(Spot, σ, K, r, n, m, Δt, 5)  # warmup
 ε = 1e-2
 for order in [5, 10, 25]
     t0 = time();
@@ -106,3 +114,5 @@ for order in [5, 10, 25]
     println(order, ":  ", 1000 * out)
     #println(out * 1000)
 end
+
+
